@@ -33,10 +33,12 @@ fun QuizNavGraph(
                 selectedCountry = selectedCountry,
                 countryList = listOf("India", "USA", "Germany"),
                 onCountrySelected = onCountryChange,
-                onStartClicked = {
+                onStartClicked = { timer ->
+                    viewModel.updateTimerDuration(timer)
                     navController.navigate("questions?isBookmarkMode=false")
                 },
-                onBookmarksClicked = {
+                onBookmarksClicked = { timer ->
+                    viewModel.updateTimerDuration(timer)
                     navController.navigate("bookmarks")
                 }
             )
@@ -100,3 +102,4 @@ fun QuizNavGraph(
         }
     }
 }
+

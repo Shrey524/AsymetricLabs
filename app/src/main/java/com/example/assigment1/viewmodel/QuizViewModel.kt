@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.viewModelScope
-import com.example.assigment1.R
 import com.example.assigment1.data.model.QuestionResponse
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -18,12 +17,12 @@ import com.example.assigment1.data.repository.ApiRepository
 import com.example.assigment1.data.repository.BookmarkRepository
 import com.google.gson.Gson
 
-class QuizViewModel
-    (application: Application,
-     private val bookmarkRepository: BookmarkRepository,
-     private val apiRepository: ApiRepository
-) : AndroidViewModel(application)
-{
+class QuizViewModel(
+    application: Application,
+    private val bookmarkRepository: BookmarkRepository,
+    private val apiRepository: ApiRepository,
+) : AndroidViewModel(application) {
+
     private val _questions = MutableStateFlow<List<QuestionResponse>>(emptyList())
     val questions: StateFlow<List<QuestionResponse>> = _questions
 
@@ -51,6 +50,9 @@ class QuizViewModel
     private val _bookmarkedIds = MutableStateFlow<Set<String>>(emptySet())
     val bookmarkedIds: StateFlow<Set<String>> = _bookmarkedIds
 
+    private val _timerDurationMillis = MutableStateFlow(30_000L)
+    val timerDurationMillis: StateFlow<Long> = _timerDurationMillis
+
     private val isLoading = MutableStateFlow(true)
 
     private var timerJob: Job? = null
@@ -59,36 +61,16 @@ class QuizViewModel
     private val _isMuted = mutableStateOf(false)
     val isMuted: State<Boolean> = _isMuted
 
+    private var isBookmarkMode = false
+
     init {
-        initMusic()
         fetchQuestions()
         loadBookmarks()
-    }
-
-    private fun initMusic() {
-        mediaPlayer = MediaPlayer.create(getApplication(), R.raw.bg_music)
-        mediaPlayer?.isLooping = true
-    }
-
-    // start music
-    fun startMusic() {
-        if (_isMuted.value) return
-        mediaPlayer?.start()
-    }
-
-    // pause music
-    fun pauseMusic() {
-        mediaPlayer?.pause()
     }
 
     // mute toggle handler
     fun toggleMute() {
         _isMuted.value = !_isMuted.value
-        if (_isMuted.value) {
-            pauseMusic()
-        } else {
-            startMusic()
-        }
     }
 
     // stop and start music
@@ -132,12 +114,12 @@ class QuizViewModel
     }
 
     // skip button functionality
-    fun skip(isBookmarkMode: Boolean) {
-        nextQuestion(isBookmarkMode)
+    fun skip() {
+        nextQuestion()
     }
 
     // Load Next Question also checks if quiz is ended
-    fun nextQuestion(isBookmarkMode: Boolean) {
+    fun nextQuestion() {
         val questionsList = if (isBookmarkMode) _bookmarkedQuestions.value else _questions.value
         val nextIndex = _currentQuestionIndex.value + 1
 
@@ -151,20 +133,25 @@ class QuizViewModel
         _isAnswerSubmitted.value = false
     }
 
+    // Update timer duration
+    fun updateTimerDuration(newDurationMillis: Long) {
+        _timerDurationMillis.value = newDurationMillis
+    }
+
     // Start Timer
     private fun startTimer() {
         timerJob?.cancel()
         _timePercent.value = 1.0f
         timerJob = viewModelScope.launch {
-            val totalTime = 60_000L
+            val duration = _timerDurationMillis.value
+            var remaining = duration
             val interval = 1_000L
-            var remaining = totalTime
             while (remaining > 0) {
                 delay(interval)
                 remaining -= interval
-                _timePercent.value = remaining.toFloat() / totalTime
+                _timePercent.value = remaining.toFloat() / duration
             }
-            submit()
+            skip()
         }
     }
 
@@ -196,7 +183,7 @@ class QuizViewModel
             val entityToDelete = _bookmarkedQuestions.value.find { it.questionId == questionId }
             entityToDelete?.let {
                 bookmarkRepository.deleteBookmark(it)
-                loadBookmarks() // 👈 refresh state
+                loadBookmarks()
             }
         }
     }

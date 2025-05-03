@@ -1,6 +1,5 @@
 package com.example.assigment1.screens.home
 
-import android.content.Context
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
-import androidx.navigation.NavController
 import com.example.assigment1.R
 
 
@@ -34,16 +32,17 @@ fun HomeScreen(
     selectedCountry: String,
     countryList: List<String>,
     onCountrySelected: (String) -> Unit,
-    onStartClicked: () -> Unit,
-    onBookmarksClicked: () -> Unit,
+    onStartClicked: (Long) -> Unit,
+    onBookmarksClicked: (Long) -> Unit
 ) {
-
-    //Strings
     val welcomeMessage = stringResource(R.string.welcome_message)
     val testApp = stringResource(id = R.string.test_app)
     val selectCountryMessage = stringResource(id = R.string.select_country_message)
     val startTestButton = stringResource(id = R.string.start_test_button)
     val bookmarkedQuestionsButton = stringResource(id = R.string.bookmarked_questions_button)
+
+    val timerOptions = listOf(30, 60, 90)
+    var selectedTimer by remember { mutableStateOf(30) }
 
     Box(
         modifier = Modifier
@@ -83,17 +82,32 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Country Selector DropDown with HHardcoded list couldn't find API with just a list of countries
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CountrySelector(
-                        selectedCountry = selectedCountry,
-                        countryList = countryList,
-                        onCountrySelected = onCountrySelected,
-                    )
-                }
+                // Country Selector
+                DropdownSelector(
+                    label = stringResource(id = R.string.select_country_label),
+                    selectedItem = selectedCountry,
+                    itemList = countryList,
+                    onItemSelected = onCountrySelected
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Timer Selector
+                Text(
+                    text = "Select Question Timer (seconds)",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                DropdownSelector(
+                    label = "Timer Duration",
+                    selectedItem = selectedTimer,
+                    itemList = timerOptions,
+                    onItemSelected = { selectedTimer = it },
+                    displayText = { "$it seconds" }
+                )
             }
 
             Column(
@@ -102,11 +116,9 @@ fun HomeScreen(
             ) {
                 // Start Quiz Button
                 Button(
-                    onClick = onStartClicked,
+                    onClick = { onStartClicked(selectedTimer * 1000L) }, // Timer value in milliseconds
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(startTestButton, color = Color.Black)
@@ -114,50 +126,46 @@ fun HomeScreen(
 
                 // Bookmarked Question Button
                 Button(
-                    onClick = onBookmarksClicked,
+                    onClick = { onBookmarksClicked(selectedTimer * 1000L) }, // Timer value in milliseconds
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(4.dp)
                 ) {
-                    Text(
-                        text = bookmarkedQuestionsButton,
-                        color = Color.Black
-                    )
+                    Text(bookmarkedQuestionsButton, color = Color.Black)
                 }
             }
         }
     }
 }
 
-@Composable
-fun CountrySelector(
-    selectedCountry: String,
-    countryList: List<String>,
-    onCountrySelected: (String) -> Unit,
-) {
-    val selectCountryLabel = stringResource(id = R.string.select_country_label)
-    val dropdownContentDescription = stringResource(id = R.string.dropdown_content_description)
 
+@Composable
+fun <T> DropdownSelector(
+    label: String,
+    selectedItem: T,
+    itemList: List<T>,
+    onItemSelected: (T) -> Unit,
+    displayText: (T) -> String = { it.toString() }
+) {
     var expanded by remember { mutableStateOf(false) }
     var textFieldSize by remember { mutableStateOf(Size.Zero) }
 
     Column {
         OutlinedTextField(
-            value = selectedCountry,
+            value = displayText(selectedItem),
             onValueChange = {},
             readOnly = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { coordinates -> textFieldSize = coordinates.size.toSize() },
-            label = { Text(selectCountryLabel, color = Color.White) },
+            label = { Text(label, color = Color.White) },
             trailingIcon = {
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = dropdownContentDescription,
+                    contentDescription = "Dropdown",
                     tint = Color.White,
-                    modifier = Modifier.clickable { expanded = true }
+                    modifier = Modifier
+                        .clickable { expanded = true }
                         .size(30.dp)
                 )
             },
@@ -170,13 +178,12 @@ fun CountrySelector(
             modifier = Modifier
                 .width(with(LocalDensity.current) { textFieldSize.width.toDp() })
                 .background(Color.White)
-                .align(Alignment.Start)
         ) {
-            countryList.forEach { country ->
+            itemList.forEach { item ->
                 DropdownMenuItem(
-                    text = { Text(country, color = Color.Black) },
+                    text = { Text(displayText(item), color = Color.Black) },
                     onClick = {
-                        onCountrySelected(country)
+                        onItemSelected(item)
                         expanded = false
                     }
                 )
@@ -184,5 +191,60 @@ fun CountrySelector(
         }
     }
 }
+
+
+//@Composable
+//fun CountrySelector(
+//    selectedCountry: String,
+//    countryList: List<String>,
+//    onCountrySelected: (String) -> Unit,
+//) {
+//    val selectCountryLabel = stringResource(id = R.string.select_country_label)
+//    val dropdownContentDescription = stringResource(id = R.string.dropdown_content_description)
+//
+//    var expanded by remember { mutableStateOf(false) }
+//    var textFieldSize by remember { mutableStateOf(Size.Zero) }
+//
+//    Column {
+//        OutlinedTextField(
+//            value = selectedCountry,
+//            onValueChange = {},
+//            readOnly = true,
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .onGloballyPositioned { coordinates -> textFieldSize = coordinates.size.toSize() },
+//            label = { Text(selectCountryLabel, color = Color.White) },
+//            trailingIcon = {
+//                Icon(
+//                    imageVector = Icons.Default.ArrowDropDown,
+//                    contentDescription = dropdownContentDescription,
+//                    tint = Color.White,
+//                    modifier = Modifier.clickable { expanded = true }
+//                        .size(30.dp)
+//                )
+//            },
+//            colors = TextFieldDefaults.colors()
+//        )
+//
+//        DropdownMenu(
+//            expanded = expanded,
+//            onDismissRequest = { expanded = false },
+//            modifier = Modifier
+//                .width(with(LocalDensity.current) { textFieldSize.width.toDp() })
+//                .background(Color.White)
+//                .align(Alignment.Start)
+//        ) {
+//            countryList.forEach { country ->
+//                DropdownMenuItem(
+//                    text = { Text(country, color = Color.Black) },
+//                    onClick = {
+//                        onCountrySelected(country)
+//                        expanded = false
+//                    }
+//                )
+//            }
+//        }
+//    }
+//}
 
 

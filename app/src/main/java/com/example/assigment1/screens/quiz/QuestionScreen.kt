@@ -1,5 +1,8 @@
 package com.example.assigment1.screens.quiz
 
+import android.content.Context
+import android.content.Intent
+import android.media.MediaPlayer
 import android.widget.TextView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -28,20 +32,26 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
@@ -92,12 +102,47 @@ fun QuestionScreen(
     // flag to check if a question is bookmarked or not
     val isBookmarked = currentQuestion?.uuidIdentifier?.let { bookmarkedIds.contains(it) } ?: false
 
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Declare mediaPlayer
+    val mediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.bg_music).apply {
+            isLooping = true
+        }
+    }
+
     // start and stop music
     LaunchedEffect(isMuted) {
         if (isMuted) {
-            viewModel.pauseMusic()
+            mediaPlayer?.pause()
         } else {
-            viewModel.startMusic()
+            mediaPlayer?.start()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    if (!isMuted) mediaPlayer.start()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    mediaPlayer.pause()
+                }
+                Lifecycle.Event.ON_DESTROY -> {
+                    mediaPlayer.stop()
+                    mediaPlayer.release()
+                }
+                else -> Unit
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            mediaPlayer.release()
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -184,10 +229,12 @@ fun QuestionScreen(
                     }
                 },
                 onSkipOrNext = {
-                    if (isAnswerSubmitted) viewModel.nextQuestion(isBookmarkMode)
-                    else viewModel.skip(isBookmarkMode)
+                    if (isAnswerSubmitted) viewModel.nextQuestion()
+                    else viewModel.skip()
                 },
-                onSubmit = { viewModel.submit() }
+                onSubmit = { viewModel.submit() },
+                context = LocalContext.current,
+                currentQuestion = currentQuestion
             )
         }
     }
@@ -214,7 +261,7 @@ fun QuestionScreenTopBar(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         LinearProgressIndicator(
-            progress = { timeRemainingPercent },
+            progress = timeRemainingPercent,
             modifier = Modifier
                 .fillMaxWidth(0.8f)
                 .height(8.dp),
@@ -283,7 +330,9 @@ fun QuizScreenFooter(
     isBookmarkMode: Boolean,
     onBookmarkClick: () -> Unit,
     onSkipOrNext: () -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    context: Context,
+    currentQuestion : QuestionResponse?
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -300,6 +349,22 @@ fun QuizScreenFooter(
                     onBookmarkClick()
                 }
         )
+
+        // Share Icon
+        Icon(
+            imageVector = Icons.Default.Share,
+            contentDescription = "Share Question",
+            modifier = Modifier
+                .size(24.dp)
+                .clickable {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, currentQuestion?.question)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share question via"))                }
+        )
+
+        Spacer(modifier = Modifier.width(16.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
 
