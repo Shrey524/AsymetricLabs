@@ -5,7 +5,6 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.viewModelScope
 import com.example.assigment1.R
-import com.example.assigment1.data.api.McqApiService
 import com.example.assigment1.data.model.QuestionResponse
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,15 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.media.MediaPlayer
 import androidx.lifecycle.AndroidViewModel
-import androidx.media3.common.util.Log
-import androidx.media3.common.util.UnstableApi
 import com.example.assigment1.data.model.BookmarkedQuestionEntity
+import com.example.assigment1.data.repository.ApiRepository
 import com.example.assigment1.data.repository.BookmarkRepository
 import com.google.gson.Gson
 
 class QuizViewModel
     (application: Application,
-     private val bookmarkRepository: BookmarkRepository
+     private val bookmarkRepository: BookmarkRepository,
+     private val apiRepository: ApiRepository
 ) : AndroidViewModel(application)
 {
     private val _questions = MutableStateFlow<List<QuestionResponse>>(emptyList())
@@ -71,15 +70,18 @@ class QuizViewModel
         mediaPlayer?.isLooping = true
     }
 
+    // start music
     fun startMusic() {
         if (_isMuted.value) return
         mediaPlayer?.start()
     }
 
+    // pause music
     fun pauseMusic() {
         mediaPlayer?.pause()
     }
 
+    // mute toggle handler
     fun toggleMute() {
         _isMuted.value = !_isMuted.value
         if (_isMuted.value) {
@@ -89,31 +91,33 @@ class QuizViewModel
         }
     }
 
+    // stop and start music
     fun stopAndReleaseMusic() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
     }
 
+    // fetch questions from API
     private fun fetchQuestions() {
         viewModelScope.launch {
             isLoading.value = true
             try {
-                val response = McqApiService.create().getQuestions()
+                val response = apiRepository.fetchQuestions()
                 _questions.value = response
                 startTimer()
             } catch (e: Exception) {
-                // handle error
-            } finally {
                 isLoading.value = false
             }
         }
     }
 
+    // select an option
     fun selectOption(index: Int) {
         _selectedOptions.value = index
     }
 
+    // submit  button functionality makes the answer visible
     fun submit() {
         val selected = _selectedOptions.value
         val currentQuestion = _questions.value.getOrNull(_currentQuestionIndex.value)
@@ -127,11 +131,12 @@ class QuizViewModel
         _isAnswerSubmitted.value = true
     }
 
+    // skip button functionality
     fun skip(isBookmarkMode: Boolean) {
         nextQuestion(isBookmarkMode)
     }
 
-    @androidx.annotation.OptIn(UnstableApi::class)
+    // Load Next Question also checks if quiz is ended
     fun nextQuestion(isBookmarkMode: Boolean) {
         val questionsList = if (isBookmarkMode) _bookmarkedQuestions.value else _questions.value
         val nextIndex = _currentQuestionIndex.value + 1
@@ -146,7 +151,7 @@ class QuizViewModel
         _isAnswerSubmitted.value = false
     }
 
-
+    // Start Timer
     private fun startTimer() {
         timerJob?.cancel()
         _timePercent.value = 1.0f
@@ -163,6 +168,7 @@ class QuizViewModel
         }
     }
 
+    // find the current bookmark
     fun bookmarkCurrent() {
         viewModelScope.launch {
             val currentQuestion = _questions.value.getOrNull(_currentQuestionIndex.value)
@@ -184,6 +190,7 @@ class QuizViewModel
         }
     }
 
+    // delete Bookmark
     fun deleteBookmark(questionId: String) {
         viewModelScope.launch {
             val entityToDelete = _bookmarkedQuestions.value.find { it.questionId == questionId }
@@ -194,6 +201,7 @@ class QuizViewModel
         }
     }
 
+    // load bookmarks from Database
     private fun loadBookmarks() {
         viewModelScope.launch {
             val bookmarks = bookmarkRepository.getAllBookmarks()
@@ -202,6 +210,7 @@ class QuizViewModel
         }
     }
 
+    // reset all values
     fun resetQuiz() {
         _currentQuestionIndex.value = 0
         _selectedOptions.value = null
@@ -211,6 +220,7 @@ class QuizViewModel
         _timePercent.value = 1.0f
     }
 
+    // stop timerJob when viewModel is cleared
     override fun onCleared() {
         timerJob?.cancel()
         stopAndReleaseMusic()

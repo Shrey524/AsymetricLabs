@@ -1,5 +1,6 @@
 package com.example.assigment1.screens.home
 
+import android.content.Context
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size // for Size (instead of IntSize)
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +26,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.navigation.NavController
+import com.example.assigment1.R
+
 
 @Composable
 fun HomeScreen(
@@ -31,8 +35,15 @@ fun HomeScreen(
     countryList: List<String>,
     onCountrySelected: (String) -> Unit,
     onStartClicked: () -> Unit,
-    onBookmarksClicked: () -> Unit
+    onBookmarksClicked: () -> Unit,
 ) {
+
+    //Strings
+    val welcomeMessage = stringResource(R.string.welcome_message)
+    val testApp = stringResource(id = R.string.test_app)
+    val selectCountryMessage = stringResource(id = R.string.select_country_message)
+    val startTestButton = stringResource(id = R.string.start_test_button)
+    val bookmarkedQuestionsButton = stringResource(id = R.string.bookmarked_questions_button)
 
     Box(
         modifier = Modifier
@@ -48,13 +59,14 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.Start
             ) {
+                // Header Text
                 Text(
                     text = buildAnnotatedString {
-                        append("Welcome to\n")
+                        append(welcomeMessage)
                         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append("AsymmetricLabs")
+                            append(stringResource(R.string.app_name))
                         }
-                        append("\nTest App")
+                        append("\n$testApp")
                     },
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White
@@ -62,14 +74,16 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Select Country Header
                 Text(
-                    text = "Please select your country",
+                    text = selectCountryMessage,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White // White text
+                    color = Color.White
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Country Selector DropDown with HHardcoded list couldn't find API with just a list of countries
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -77,7 +91,7 @@ fun HomeScreen(
                     CountrySelector(
                         selectedCountry = selectedCountry,
                         countryList = countryList,
-                        onCountrySelected = onCountrySelected
+                        onCountrySelected = onCountrySelected,
                     )
                 }
             }
@@ -86,28 +100,30 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Start Quiz Button
                 Button(
                     onClick = onStartClicked,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White // Button background color
+                        containerColor = Color.White
                     ),
-                    shape = RoundedCornerShape(4.dp) // Rounded corners
+                    shape = RoundedCornerShape(4.dp)
                 ) {
-                    Text("Start Test", color = Color.Black) // Set text color separately
+                    Text(startTestButton, color = Color.Black)
                 }
 
+                // Bookmarked Question Button
                 Button(
                     onClick = onBookmarksClicked,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White // Button background color
+                        containerColor = Color.White
                     ),
-                    shape = RoundedCornerShape(4.dp) // Rounded corners
+                    shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = "Bookmarked Questions",
-                        color = Color.Black // Button text color
+                        text = bookmarkedQuestionsButton,
+                        color = Color.Black
                     )
                 }
             }
@@ -119,56 +135,54 @@ fun HomeScreen(
 fun CountrySelector(
     selectedCountry: String,
     countryList: List<String>,
-    onCountrySelected: (String) -> Unit
+    onCountrySelected: (String) -> Unit,
 ) {
+    val selectCountryLabel = stringResource(id = R.string.select_country_label)
+    val dropdownContentDescription = stringResource(id = R.string.dropdown_content_description)
+
     var expanded by remember { mutableStateOf(false) }
     var textFieldSize by remember { mutableStateOf(Size.Zero) }
 
-        Column(
-        ) {
-            OutlinedTextField(
-                value = selectedCountry,
-                onValueChange = {},
-                readOnly = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { coordinates ->
-                        textFieldSize = coordinates.size.toSize()
-                    },
-                label = { Text("Select Country", color = Color.White) },
-                trailingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "Dropdown",
-                        tint = Color.White,
-                        modifier = Modifier.clickable { expanded = true }
-                            .size(30.dp)
-                    )
-                },
-                colors = TextFieldDefaults.colors(
-
+    Column {
+        OutlinedTextField(
+            value = selectedCountry,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates -> textFieldSize = coordinates.size.toSize() },
+            label = { Text(selectCountryLabel, color = Color.White) },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = dropdownContentDescription,
+                    tint = Color.White,
+                    modifier = Modifier.clickable { expanded = true }
+                        .size(30.dp)
                 )
-            )
+            },
+            colors = TextFieldDefaults.colors()
+        )
 
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .width(with(LocalDensity.current) { textFieldSize.width.toDp() })
-                    .background(Color.White)
-                    .align(Alignment.Start)
-            ) {
-                countryList.forEach { country ->
-                    DropdownMenuItem(
-                        text = { Text(country, color = Color.Black) },
-                        onClick = {
-                            onCountrySelected(country)
-                            expanded = false
-                        }
-                    )
-                }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .width(with(LocalDensity.current) { textFieldSize.width.toDp() })
+                .background(Color.White)
+                .align(Alignment.Start)
+        ) {
+            countryList.forEach { country ->
+                DropdownMenuItem(
+                    text = { Text(country, color = Color.Black) },
+                    onClick = {
+                        onCountrySelected(country)
+                        expanded = false
+                    }
+                )
             }
         }
-
+    }
 }
+
 

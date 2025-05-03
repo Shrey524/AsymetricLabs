@@ -55,29 +55,44 @@ import com.google.gson.Gson
 
 @Composable
 fun QuestionScreen(
-    isBookmarkMode: Boolean = false,
     navController: NavHostController,
     viewModel: QuizViewModel = viewModel(),
     onCloseClick: () -> Unit,
-    onQuizFinished: (correctAnswers: Int, totalQuestions: Int) -> Unit
+    onQuizFinished: (correctAnswers: Int, totalQuestions: Int) -> Unit,
+    isBookmarkMode: Boolean = false
 ) {
-    val currentIndex by viewModel.currentQuestionIndex.collectAsState()
-    val selectedOption by viewModel.selectedOptions.collectAsState()
+    // variables for timer, background music, bookmark and end of quiz
+    val isMuted by viewModel.isMuted
     val timeRemainingPercent by viewModel.timePercent.collectAsState()
     val quizFinished by viewModel.quizFinished.collectAsState()
-    val isAnswerSubmitted by viewModel.isAnswerSubmitted.collectAsState()
-    val isMuted by viewModel.isMuted
     val bookmarked = viewModel.bookmarkedQuestions.collectAsState().value
-    val apiQuestions = viewModel.questions.collectAsState().value
+
+    // unique id to identify bookmarks
     val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
 
+    // variables for question number, answer selected, answer submitted
+    val currentIndex by viewModel.currentQuestionIndex.collectAsState()
+    val selectedOption by viewModel.selectedOptions.collectAsState()
+    val isAnswerSubmitted by viewModel.isAnswerSubmitted.collectAsState()
+
+    // variables storing list of questions/ current question and options
+    val apiQuestions = viewModel.questions.collectAsState().value
     val questions = rememberUpdatedState(
         if (isBookmarkMode) bookmarked.map { it.toQuestionResponse() } else apiQuestions
     ).value
-
     val currentQuestion = questions.getOrNull(currentIndex)
+    val options = currentQuestion?.let {
+        listOf(
+            it.option1,
+            it.option2,
+            it.option3,
+            it.option4)
+    }
+
+    // flag to check if a question is bookmarked or not
     val isBookmarked = currentQuestion?.uuidIdentifier?.let { bookmarkedIds.contains(it) } ?: false
 
+    // start and stop music
     LaunchedEffect(isMuted) {
         if (isMuted) {
             viewModel.pauseMusic()
@@ -86,16 +101,10 @@ fun QuestionScreen(
         }
     }
 
-    LaunchedEffect(quizFinished) {
-        if (quizFinished) {
-            viewModel.stopAndReleaseMusic()
-            onQuizFinished(viewModel.correctAnswers.value, questions.size)
-        }
-    }
-
+    // Loading Screen till the and api response is loaded
     if (currentQuestion == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Loading question...", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Loading question...", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         return
     }
@@ -106,185 +115,305 @@ fun QuestionScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Top progress + mute + close
+        // QuizScreen Header (Linear ProgressBar + Mute/UnMute + Close)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            LinearProgressIndicator(
-                progress = { timeRemainingPercent },
-                modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .height(8.dp),
-                trackColor = Color.LightGray,
-                color = Color.DarkGray
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { viewModel.toggleMute() }) {
-                    Icon(
-                        painter = painterResource(id = if (viewModel.isMuted.value) R.drawable.ic_mute else R.drawable.ic_unmute),
-                        contentDescription = if (viewModel.isMuted.value) "Mute" else "Unmute",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = {
+            QuestionScreenTopBar(
+                timeRemainingPercent = timeRemainingPercent,
+                isMuted = isMuted,
+                onToggleMute = { viewModel.toggleMute() },
+                onClose = {
                     viewModel.stopAndReleaseMusic()
-                    if(isBookmarkMode) onCloseClick() else  navController.navigate("home")
-
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (isBookmarkMode) onCloseClick() else navController.navigate("home")
                 }
-            }
+            )
         }
 
+        //Space
         Spacer(modifier = Modifier.height(16.dp))
 
+        //Question Number
         Text("Question ${currentIndex + 1}", style = MaterialTheme.typography.titleMedium)
+
+        //Space
         Spacer(modifier = Modifier.height(8.dp))
 
-        when (currentQuestion.questionType) {
-            "text" -> Text(currentQuestion.question, style = MaterialTheme.typography.bodyMedium)
-            "htmlText" -> AndroidView(
+        //Question
+        QuestionContent(type = currentQuestion.questionType, content = currentQuestion.question)
+
+        //Space
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Options
+        QuestionOptions(
+            options = options,
+            selectedOption = selectedOption,
+            isAnswerSubmitted = isAnswerSubmitted,
+            onOptionSelected = { viewModel.selectOption(it) }
+        )
+
+        //Space
+        Spacer(modifier = Modifier.weight(1f))
+
+        //Answer Explanation only visible after answer is submitted
+        if (isAnswerSubmitted) {
+            AnswerExplanation(
+                isCorrect = selectedOption == (currentQuestion.correctOption - 1),
+                solution = currentQuestion.solution
+            )
+        }
+
+        // QuizScreen Footer (Bookmark + Next/Skip + Submit)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QuizScreenFooter(
+                isBookmarked = isBookmarked,
+                isAnswerSubmitted = isAnswerSubmitted,
+                selectedOption = selectedOption,
+                isBookmarkMode = isBookmarkMode,
+                onBookmarkClick = {
+                    currentQuestion.uuidIdentifier.let { id ->
+                        if (isBookmarked) viewModel.deleteBookmark(id)
+                        else viewModel.bookmarkCurrent()
+                    }
+                },
+                onSkipOrNext = {
+                    if (isAnswerSubmitted) viewModel.nextQuestion(isBookmarkMode)
+                    else viewModel.skip(isBookmarkMode)
+                },
+                onSubmit = { viewModel.submit() }
+            )
+        }
+    }
+
+    //  navigate to result screen
+    LaunchedEffect(quizFinished) {
+        if (quizFinished) {
+            viewModel.stopAndReleaseMusic()
+            onQuizFinished(viewModel.correctAnswers.value, questions.size)
+        }
+    }
+}
+
+@Composable
+fun QuestionScreenTopBar(
+    timeRemainingPercent: Float,
+    isMuted: Boolean,
+    onToggleMute: () -> Unit,
+    onClose: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        LinearProgressIndicator(
+            progress = { timeRemainingPercent },
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .height(8.dp),
+            trackColor = Color.LightGray,
+            color = Color.DarkGray
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onToggleMute) {
+                Icon(
+                    painter = painterResource(id = if (isMuted) R.drawable.ic_mute else R.drawable.ic_unmute),
+                    contentDescription = if (isMuted) "Unmute" else "Mute",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun QuestionOptions(
+    options: List<String>?,
+    selectedOption: Int?,
+    isAnswerSubmitted: Boolean,
+    onOptionSelected: (Int) -> Unit
+) {
+    options?.forEachIndexed { index, option ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !isAnswerSubmitted) { onOptionSelected(index) }
+                .padding(vertical = 8.dp)
+        ) {
+            RadioButton(
+                selected = selectedOption == index,
+                onClick = if (!isAnswerSubmitted) { { onOptionSelected(index) } } else null,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color.Black,
+                    unselectedColor = Color.DarkGray
+                )
+            )
+            Text(
+                text = option,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.bodyMedium
+
+            )
+        }
+    }
+}
+
+@Composable
+fun QuizScreenFooter(
+    isBookmarked: Boolean,
+    isAnswerSubmitted: Boolean,
+    selectedOption: Int?,
+    isBookmarkMode: Boolean,
+    onBookmarkClick: () -> Unit,
+    onSkipOrNext: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Bookmark functionality
+        Icon(
+            painter = painterResource(id = if (isBookmarked) R.drawable.ic_bookmarked else R.drawable.ic_bookmark),
+            contentDescription = if (isBookmarked) "Bookmarked" else "Bookmark",
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(enabled = !isAnswerSubmitted && !isBookmarkMode) {
+                    onBookmarkClick()
+                }
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+
+            // Text button for Next/Skip
+            TextButton(onClick = onSkipOrNext) {
+                Text(
+                    if (isAnswerSubmitted) "Next" else "Skip",
+                    color = Color.Black
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Button to Submit Answer only active before the answer is submitted
+            Button(
+                onClick = onSubmit,
+                enabled = selectedOption != null && !isAnswerSubmitted,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Black,
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.LightGray,
+                    disabledContentColor = Color.Gray
+                )
+            ) {
+                Text("Submit")
+            }
+        }
+    }
+}
+
+@Composable
+fun QuestionContent(
+    type: String,
+    content: String
+) {
+    when (type) {
+        "text" -> {
+            Text(
+                text = content,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        "htmlText" -> {
+            AndroidView(
                 factory = { context -> TextView(context).apply { textSize = 18f } },
                 update = {
-                    it.text = HtmlCompat.fromHtml(currentQuestion.question, HtmlCompat.FROM_HTML_MODE_COMPACT)
+                    it.text = HtmlCompat.fromHtml(content, HtmlCompat.FROM_HTML_MODE_COMPACT)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             )
-            "image" -> AsyncImage(
-                model = currentQuestion.question,
+        }
+        "image" -> {
+            AsyncImage(
+                model = content,
                 contentDescription = "Question Image",
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             )
-            else -> Text("Unsupported question type.", style = MaterialTheme.typography.bodySmall)
         }
+        else -> {
+            Text(
+                text = "Unsupported question type.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
+@Composable
+fun AnswerExplanation(
+    isCorrect: Boolean,
+    solution: List<SolutionItem>
+) {
+    Spacer(modifier = Modifier.height(24.dp))
 
-        val options = listOf(
-            currentQuestion.option1,
-            currentQuestion.option2,
-            currentQuestion.option3,
-            currentQuestion.option4
-        )
+    Text(
+        text = if (isCorrect) "Correct Answer!" else "Wrong Answer!",
+        modifier = Modifier.padding(vertical = 8.dp),
+        color = if (isCorrect) Color.Green else Color.Red,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
+    )
 
-        options.forEachIndexed { index, option ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+    Text("Explanation:", style = MaterialTheme.typography.titleMedium)
+    Spacer(modifier = Modifier.height(4.dp))
+
+    solution.forEach { item ->
+        when (item.contentType) {
+            "text" -> Text(item.contentData, style = MaterialTheme.typography.bodyMedium)
+
+            "htmlText" -> AndroidView(
+                factory = { context -> TextView(context).apply { textSize = 16f } },
+                update = {
+                    it.text = HtmlCompat.fromHtml(item.contentData, HtmlCompat.FROM_HTML_MODE_COMPACT)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !isAnswerSubmitted) { viewModel.selectOption(index) }
-                    .padding(vertical = 8.dp)
-            ) {
-                RadioButton(
-                    selected = selectedOption == index,
-                    onClick = if (!isAnswerSubmitted) { { viewModel.selectOption(index) } } else null,
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = Color.Black,
-                        unselectedColor = Color.DarkGray
-                    )
-                )
-                Text(option, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        if (isAnswerSubmitted) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val isCorrect = selectedOption == (currentQuestion.correctOption - 1)
-            Text(
-                if (isCorrect) "Correct Answer!" else "Wrong Answer!",
-                modifier = Modifier.padding(vertical = 8.dp),
-                color = if (isCorrect) Color.Green else Color.Red,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                    .padding(vertical = 4.dp)
             )
 
-            Text("Explanation:", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-
-            currentQuestion.solution.forEach { solutionItem ->
-                when (solutionItem.contentType) {
-                    "text" -> Text(solutionItem.contentData, style = MaterialTheme.typography.bodyMedium)
-                    "htmlText" -> AndroidView(
-                        factory = { context -> TextView(context).apply { textSize = 16f } },
-                        update = {
-                            it.text = HtmlCompat.fromHtml(solutionItem.contentData, HtmlCompat.FROM_HTML_MODE_COMPACT)
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    )
-                    "image" -> AsyncImage(
-                        model = solutionItem.contentData,
-                        contentDescription = "Explanation Image",
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    )
-                    else -> Text("Unsupported content type.", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        // Bookmark + Next/Skip + Submit
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Icon(
-                painter = painterResource(id = if (isBookmarked) R.drawable.ic_bookmarked else R.drawable.ic_bookmark),
-                contentDescription = if (isBookmarked) "Bookmarked" else "Bookmark",
+            "image" -> AsyncImage(
+                model = item.contentData,
+                contentDescription = "Explanation Image",
+                contentScale = ContentScale.FillWidth,
                 modifier = Modifier
-                    .size(24.dp)
-                    .clickable(enabled = !isAnswerSubmitted) {
-                        currentQuestion.uuidIdentifier?.let { id ->
-                            if (isBookmarked) {
-                                viewModel.deleteBookmark(id)
-                            } else {
-                                viewModel.bookmarkCurrent()
-                            }
-                        }
-                    }
-                )
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = {
-                    if (isAnswerSubmitted) viewModel.nextQuestion(isBookmarkMode)
-                    else viewModel.skip(isBookmarkMode)
-                }) {
-                    Text(if (isAnswerSubmitted) "Next" else "Skip", color = Color.Black)
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Button(
-                    onClick = { viewModel.submit() },
-                    enabled = selectedOption != null && !isAnswerSubmitted,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Black,
-                        contentColor = Color.White,
-                        disabledContainerColor = Color.LightGray,
-                        disabledContentColor = Color.Gray
-                    )
-                ) {
-                    Text("Submit")
-                }
-            }
+            else -> Text("Unsupported content type.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
