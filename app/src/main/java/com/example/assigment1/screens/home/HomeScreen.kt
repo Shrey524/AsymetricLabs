@@ -193,58 +193,6 @@ fun <T> DropdownSelector(
 }
 
 
-//@Composable
-//fun CountrySelector(
-//    selectedCountry: String,
-//    countryList: List<String>,
-//    onCountrySelected: (String) -> Unit,
-//) {
-//    val selectCountryLabel = stringResource(id = R.string.select_country_label)
-//    val dropdownContentDescription = stringResource(id = R.string.dropdown_content_description)
-//
-//    var expanded by remember { mutableStateOf(false) }
-//    var textFieldSize by remember { mutableStateOf(Size.Zero) }
-//
-//    Column {
-//        OutlinedTextField(
-//            value = selectedCountry,
-//            onValueChange = {},
-//            readOnly = true,
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .onGloballyPositioned { coordinates -> textFieldSize = coordinates.size.toSize() },
-//            label = { Text(selectCountryLabel, color = Color.White) },
-//            trailingIcon = {
-//                Icon(
-//                    imageVector = Icons.Default.ArrowDropDown,
-//                    contentDescription = dropdownContentDescription,
-//                    tint = Color.White,
-//                    modifier = Modifier.clickable { expanded = true }
-//                        .size(30.dp)
-//                )
-//            },
-//            colors = TextFieldDefaults.colors()
-//        )
-//
-//        DropdownMenu(
-//            expanded = expanded,
-//            onDismissRequest = { expanded = false },
-//            modifier = Modifier
-//                .width(with(LocalDensity.current) { textFieldSize.width.toDp() })
-//                .background(Color.White)
-//                .align(Alignment.Start)
-//        ) {
-//            countryList.forEach { country ->
-//                DropdownMenuItem(
-//                    text = { Text(country, color = Color.Black) },
-//                    onClick = {
-//                        onCountrySelected(country)
-//                        expanded = false
-//                    }
-//                )
-//            }
-//        }
-//    }
-//}
+
 
 
